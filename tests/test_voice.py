@@ -79,6 +79,21 @@ class VoiceTests(unittest.TestCase):
             result=self.voice.process_voice(text,'te')
             self.assertEqual(result['status'],'error')
             self.assertEqual(result['message'],MESSAGES['te'][key].format(product='Rice',stock='20',unit=MESSAGES['te']['units']['kg']))
+
+    def test_customer_purchase_reduces_stock_and_confirms_remainder(self):
+        result = self.voice.process_voice('Customer bought 2 kg of rice', 'en')
+        self.assertEqual(result['status'], 'ok', result)
+        self.assertEqual(result['parsed']['transaction_type'], 'SALE')
+        self.assertEqual(self.inventory.current_stock_for_product('rice'), 18)
+        self.assertEqual(result['message'], 'Saved: sold, 2 kg, Rice. Available: 18 kg.')
+
+    def test_polite_complete_item_entry_creates_a_new_product(self):
+        result = self.voice.process_voice('two packets of chocolate pls', 'en')
+        self.assertEqual(result['status'], 'ok', result)
+        self.assertEqual(result['parsed']['transaction_type'], 'PURCHASE')
+        product = self.inventory.by_product_name('chocolate')
+        self.assertIsNotNone(product)
+        self.assertEqual(self.inventory.current_stock_for_product(product.id), 2)
     def test_new_products_are_created_and_reused(self):
         examples = [('en','Add 10 packets of biscuits','Biscuits','packets'),
                     ('en','Add 5 litres of milk','Milk','litres'),

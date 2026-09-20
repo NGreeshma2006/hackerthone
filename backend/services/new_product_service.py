@@ -6,7 +6,7 @@ from backend.services.voice_vocabulary import ACTIONS, UNITS
 
 # These are command words, not a product allowlist. Names such as soap,
 # biscuits, detergent, milk, and brands can be stored without pre-registration.
-FILLER = ['please', 'of', 'today', 'i', 'we', 'have', 'has', 'just', 'stock', 'inventory', 'new product', 'new item', 'product', 'item', 'to my shop', 'to inventory', 'to stock', 'were', 'was', 'is', 'in', 'the', 'aaj', 'aaj ki', 'कृपया', 'आज', 'नया सामान', 'नई वस्तु', 'स्टॉक में', 'में', 'का', 'की', 'के', 'है', 'हैं', 'मैंने', 'మా', 'ఈరోజు', 'దయచేసి', 'నేడు', 'కొత్త', 'இன்று', 'தயவுசெய்து', 'புதிய', 'ಇಂದು', 'ದಯವಿಟ್ಟು', 'ಹೊಸ', 'ഇന്ന്', 'ദയവായി', 'പുതിയ', 'कृपया', 'आज', 'नवीन', 'आजचा', 'আজ', 'দয়া করে', 'নতুন', 'করো', 'করুন']
+FILLER = ['please', 'pls', 'kindly', 'of', 'today', 'i', 'we', 'have', 'has', 'just', 'stock', 'inventory', 'new product', 'new item', 'product', 'item', 'to my shop', 'to inventory', 'to stock', 'were', 'was', 'is', 'in', 'the', 'aaj', 'aaj ki', 'कृपया', 'आज', 'नया सामान', 'नई वस्तु', 'स्टॉक में', 'में', 'का', 'की', 'के', 'है', 'हैं', 'मैंने', 'మా', 'ఈరోజు', 'దయచేసి', 'నేడు', 'కొత్త', 'இன்று', 'தயவுசெய்து', 'புதிய', 'ಇಂದು', 'ದಯವಿಟ್ಟು', 'ಹೊಸ', 'ഇന്ന്', 'ദയവായി', 'പുതിയ', 'कृपया', 'आज', 'नवीन', 'आजचा', 'আজ', 'দয়া করে', 'নতুন', 'করো', 'করুন']
 CONNECTORS = ['and', 'plus', 'और', 'तथा', 'మరియు', 'மற்றும்', 'ಹಾಗೂ', 'ಮತ್ತು', 'കൂടാതെ', 'आणि', 'এবং', '&']
 
 def remove_phrase(text, phrase):

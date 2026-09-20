@@ -59,6 +59,10 @@ class NLPService:
 
     @staticmethod
     def detect_transaction_type(text):
+        # "Customer bought" describes stock leaving the shop, even though the
+        # word "bought" on its own means the shop received stock.
+        if any(contains(text, phrase) for phrase in ('customer bought', 'customer purchased', 'customer purchase')):
+            return 'SALE'
         matches = [key for key, words in ACTIONS.items() if any(contains(text, word) for word in words)]
         return matches[0] if len(matches) == 1 else None
 
@@ -69,8 +73,18 @@ class NLPService:
         inquiry = any(contains(normalized, word) for word in QUERY)
         low = any(contains(normalized, word) for word in LOW)
         negated = any(contains(normalized, word) for word in NEGATION)
+        quantity = NLPService.extract_quantity(text)
+        unit = NLPService.detect_unit(text)
+        # A complete polite item entry ("two packets of chocolate please") is
+        # a common hands-free way to record received stock. Require both a
+        # quantity and unit so an unclear sentence can never change stock.
+        polite_entry = not action and quantity is not None and unit is not None and any(
+            contains(normalized, word) for word in ('please', 'pls', 'kindly', 'कृपया', 'దయచేసి', 'தயவுசெய்து', 'ದಯವಿಟ್ಟು', 'ദയവായി', 'দয়া করে')
+        )
+        if polite_entry:
+            action = 'PURCHASE'
         # Questions are read-only even if they mention a sale or purchase.
         intent = 'INVALID' if negated else 'LOW_STOCK' if low else 'INQUIRY' if inquiry else 'MOVEMENT' if action else 'UNKNOWN'
         return {'intent': intent, 'product': NLPService.detect_product(normalized),
-                'quantity': NLPService.extract_quantity(text), 'unit': NLPService.detect_unit(text),
+                'quantity': quantity, 'unit': unit,
                 'transaction_type': action, 'language': detect_language(text), 'raw_text': text}

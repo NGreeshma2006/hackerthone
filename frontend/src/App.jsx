@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useInventory, InventoryDialog } from "./inventory.jsx";
+import LoginPage from "./LoginPage.jsx";
 import { Toaster } from "sonner";
 import {
   Bell,
@@ -43,7 +44,21 @@ const navItems = [
 ];
 
 
-export default function Home() {
+export default function App() {
+  const [session, setSession] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('boli-session')); }
+    catch { return null; }
+  });
+  function login(user) {
+    const nextSession = { ...user, signedInAt: new Date().toISOString() };
+    localStorage.setItem('boli-session', JSON.stringify(nextSession));
+    setSession(nextSession);
+  }
+  if (!session) return <LoginPage onLogin={login} />;
+  return <InventoryHome />;
+}
+
+function InventoryHome() {
   const inventory = useInventory();
   const { stock, activeNav, navigate, language, isListening, transcript, filter, setFilter,
     search, setSearch, command, setCommand, startListening, stopListening, runCommand,
