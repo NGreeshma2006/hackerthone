@@ -1,0 +1,9 @@
+node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+backend/*.db
+backend/.pytest_cache/
+.venv/
+.mongo-venv/
+.env

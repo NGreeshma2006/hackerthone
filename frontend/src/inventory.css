@@ -1,0 +1,20 @@
+.inventory-dialog { color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 26px; width: min(560px, calc(100% - 28px)); max-height: 85vh; box-shadow: var(--shadow); }
+.inventory-dialog::backdrop { background: #153e3566; backdrop-filter: blur(3px); }
+.dialog-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 20px; }
+.dialog-heading h2 { margin: 0; font: 26px Fraunces, Georgia, serif; }
+.inventory-dialog p { font-size: 14px; line-height: 1.7; }
+.entry-form { display: grid; gap: 15px; margin: 18px 0; }
+.entry-form label { display: grid; gap: 7px; font-size: 13px; }
+.entry-form input,.entry-form select { width: 100%; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); font: inherit; }
+.entry-form button { justify-content: center; min-height: 40px; }
+.inventory-dialog summary { cursor: pointer; margin: 20px 0; }
+.catalog-item { display: flex; justify-content: space-between; gap: 20px; width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--line); padding: 15px 0; color: var(--ink); }
+.catalog-item span { color: var(--ink-soft); }
+.connection-error { padding: 12px; margin-top: 12px; border-radius: 8px; background: #fae2d6; font-size: 13px; }
+.connection-error button { margin-left: 12px; }
+.empty-stock { padding: 20px; color: var(--ink-soft); font-size: 13px; }
+button:disabled { opacity: .5; cursor: wait; }
+.response-speaker { display: inline-flex; align-items: center; justify-content: center; padding: 5px; border: 0; background: transparent; color: inherit; border-radius: 50%; flex-shrink: 0; }
+.response-speaker[aria-pressed="true"] { color: var(--yellow); background: #ffffff18; }
+.recognized-text { color: #bed2c5; text-align: center; font-size: 11px; line-height: 1.5; margin-top: 8px; overflow-wrap: anywhere; }
+.transcript span { overflow-wrap: anywhere; }
