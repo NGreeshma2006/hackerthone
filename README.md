@@ -73,7 +73,7 @@ The browser test uses headless Microsoft Edge and mocked inventory responses, so
 
 ### Voice commands and playback
 
-Choose a language in the top bar, then tap the microphone. Voice prompts, inventory replies, and playback use that language. Tap the small speaker beside the response to replay it. The browser needs microphone permission and a speech-recognition service; an installed speech voice for the chosen language is needed for playback. A typed fallback is offered when recognition is unavailable.
+Choose a language in the top bar, then tap the microphone. Voice prompts, inventory replies, and playback use that language. Tap the small speaker beside the response to replay it. The browser needs microphone permission and a speech-recognition service; playback uses a matching device voice when available and otherwise fetches online audio from `/voice/speak` using [edge-tts](https://github.com/rany2/edge-tts). Online playback supports all eight selectable languages without installing Windows voices and requires internet access from the backend. Response text is sent to Microsoft's online speech service for synthesis. A typed fallback is offered when recognition is unavailable.
 
 Supported inventory commands include receiving stock, sales, customer returns, damage, credit, remaining stock, and reorder questions. Examples: `Add 3 kg of rice`, `तीन किलो चावल जोड़ो`, `మూడు కిలోల బియ్యం జోడించు`, `அரிசி எவ்வளவு உள்ளது?`. Say one movement at a time. An explicit receipt with a product name, quantity and unit can create a new catalog item automatically, for example `Add 10 packets of biscuits`. Repeating that name updates the same item. Missing units use that item's configured unit; bags and kilograms need a configured conversion. Unknown, ambiguous, negated, and incomplete requests do not change stock. This is a vocabulary-based inventory assistant, not a general-purpose conversational model.
 
@@ -84,4 +84,12 @@ Additional verification:
 npx playwright test tests/voice.spec.js --workers=1 --timeout=90000
 ```
 
-Browser tests simulate recognition and synthesis to verify language routing, final-result handling, cancellation, playback, permission errors, and typed fallback. Physical microphone capture and installed speech voices still depend on the user's browser and device.
+Browser tests simulate recognition and synthesis to verify language routing, final-result handling, cancellation, playback, permission errors, and typed fallback. Physical microphone capture still depends on the user's browser, microphone permission, and recognition service. Online playback removes the installed-voice requirement. Start both servers; inventory commands and online playback need the backend on port 8000.
+
+### Accounts and personalized greetings
+
+Choose **Sign up** on the login screen, enter your full name and email, and set and confirm a password of at least eight characters. Creating an account signs you in. Returning users sign in with the same email and password; the dashboard greeting and profile show the saved full name. **Sign out** lets another user sign in.
+
+Accounts are stored in the backend SQLite database, with salted PBKDF2 password hashes. Browser sessions use expiring, revocable HttpOnly cookies and are checked with `/auth/me` on reload. The previous prototype localStorage profiles are discarded; create an account once to use the new flow. Run the frontend and backend together via the Vite `/api` proxy. Accounts currently access this installation's shared shop inventory; this change does not add separate inventories per account or authorization to the existing inventory endpoints.
+
+Account verification: `.venv\Scripts\python.exe -m unittest discover -s tests -p test_auth.py` and `npx playwright test tests/auth.spec.js --workers=1`.

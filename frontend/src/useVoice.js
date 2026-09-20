@@ -20,6 +20,7 @@ export function useVoice({ request, refresh, open, command, setCommand }) {
   const [isSpeaking, setSpeaking] = useState(false);
   const recognition = useRef(null), processing = useRef(false), speech = useRef(null);
   const latestResponse = useRef(null), mounted = useRef(true);
+  const remoteSpeech = useRef(null);
 
   function cancelRecognition() {
     const rec = recognition.current;
@@ -29,6 +30,14 @@ export function useVoice({ request, refresh, open, command, setCommand }) {
   }
   function cancelSpeech() {
     speech.current = null;
+    const remote = remoteSpeech.current;
+    remoteSpeech.current = null;
+    if (remote) {
+      remote.controller.abort();
+      clearTimeout(remote.timer);
+      if (remote.audio) { remote.audio.pause(); remote.audio.removeAttribute('src'); remote.audio.load(); }
+      if (remote.url) URL.revokeObjectURL(remote.url);
+    }
     window.speechSynthesis?.cancel();
     setSpeaking(false);
   }
@@ -39,14 +48,42 @@ export function useVoice({ request, refresh, open, command, setCommand }) {
     return () => { mounted.current = false; cancelRecognition(); cancelSpeech(); };
   }, []);
 
+  async function speakOnline(text, responseLocale) {
+    const remote = { controller: new AbortController() };
+    remoteSpeech.current = remote;
+    setSpeaking(true);
+    remote.timer = setTimeout(() => remote.controller.abort(), 25000);
+    const current = () => mounted.current && remoteSpeech.current === remote;
+    const finish = (failed = false) => {
+      if (!current()) return;
+      cancelSpeech();
+      if (failed) toast.info(messages[responseLocale.split('-')[0]].noVoice);
+    };
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/voice/speak`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, language: responseLocale.split('-')[0] }),
+        signal: remote.controller.signal,
+      });
+      if (!response.ok) throw new Error('Speech unavailable');
+      const blob = await response.blob();
+      if (!current()) return;
+      clearTimeout(remote.timer);
+      remote.url = URL.createObjectURL(blob);
+      remote.audio = new Audio(remote.url);
+      remote.audio.onended = () => finish();
+      remote.audio.onerror = () => finish(true);
+      await remote.audio.play();
+    } catch { finish(true); }
+  }
+
   function speak(text, responseLocale = locale) {
     cancelSpeech();
     const synthesis = window.speechSynthesis;
-    const translation = messages[responseLocale.split('-')[0]];
-    if (!synthesis || !window.SpeechSynthesisUtterance) { toast.info(translation.noVoice); return; }
+    if (!synthesis || !window.SpeechSynthesisUtterance) { void speakOnline(text, responseLocale); return; }
     const voices = synthesis.getVoices();
     const matching = voices.find(v => v.lang.toLowerCase() === responseLocale.toLowerCase()) || voices.find(v => v.lang.split('-')[0] === responseLocale.split('-')[0]);
-    if (voices.length && !matching) { toast.info(translation.noVoice); return; }
+    if (!matching) { void speakOnline(text, responseLocale); return; }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = responseLocale;
     if (matching) utterance.voice = matching;
@@ -57,9 +94,10 @@ export function useVoice({ request, refresh, open, command, setCommand }) {
     utterance.onerror = event => {
       if (speech.current !== utterance) return;
       speech.current = null; setSpeaking(false);
-      if (!['canceled', 'interrupted'].includes(event.error)) toast.info(translation.noVoice);
+      if (!['canceled', 'interrupted'].includes(event.error)) void speakOnline(text, responseLocale);
     };
-    synthesis.speak(utterance);
+    try { synthesis.speak(utterance); }
+    catch { speech.current = null; void speakOnline(text, responseLocale); }
   }
 
   async function runCommand(text = command) {
@@ -125,7 +163,7 @@ export function useVoice({ request, refresh, open, command, setCommand }) {
     cancelRecognition(); cancelSpeech(); latestResponse.current = null;
     changeLanguage(value); setRecognizedText('');
     setTranscript(messages[languages[value].split('-')[0]].ready);
-    localStorage.setItem('boli-language', JSON.stringify(value));
+    try { localStorage.setItem('boli-language', JSON.stringify(value)); } catch { /* Selection still works without storage. */ }
   }
   function replayResponse() {
     if (isSpeaking) { cancelSpeech(); return; }

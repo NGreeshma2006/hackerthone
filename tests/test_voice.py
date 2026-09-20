@@ -94,6 +94,21 @@ class VoiceTests(unittest.TestCase):
         product = self.inventory.by_product_name('chocolate')
         self.assertIsNotNone(product)
         self.assertEqual(self.inventory.current_stock_for_product(product.id), 2)
+
+    def test_native_packet_forms_are_understood(self):
+        for code, phrase in [
+            ('te', 'రెండు పాకెట్లు బిస్కెట్లు జోడించు'),
+            ('te', 'రెండు ప్యాకెట్ బిస్కెట్లు జోడించు'),
+            ('ta', 'இரண்டு பாக்கெட்டுகள் சோப்பு சேர்'),
+            ('kn', 'ಎರಡು ಪ್ಯಾಕೆಟ್ಗಳು ಸಾಬೂನು ಸೇರಿಸು'),
+            ('ml', 'രണ്ട് പാക്കറ്റുകൾ സോപ്പ് ചേർക്കുക'),
+            ('hi', 'दो पैकेटों साबुन जोड़ो'),
+            ('bn', 'দুই প্যাকেটের সাবান যোগ করো'),
+        ]:
+            with self.subTest(language=code, phrase=phrase):
+                result = self.voice.process_voice(phrase, code)
+                self.assertEqual(result['status'], 'ok', result)
+                self.assertEqual(result['parsed']['unit'], 'packets')
     def test_new_products_are_created_and_reused(self):
         examples = [('en','Add 10 packets of biscuits','Biscuits','packets'),
                     ('en','Add 5 litres of milk','Milk','litres'),
@@ -140,6 +155,25 @@ class VoiceTests(unittest.TestCase):
             self.assertEqual(response.json()['status'],'answer')
             self.assertEqual(client.post('/voice/process',json={'text':{'bad':'value'}}).status_code,422)
             self.assertEqual(client.post('/voice/process',json={'text':'Rice','language':'unknown'}).status_code,422)
+    def test_online_speech_endpoint_all_languages_and_errors(self):
+        from unittest.mock import AsyncMock, patch
+        from backend.services.speech_service import VOICES
+        self.assertEqual(set(VOICES), set(MESSAGES))
+        # This endpoint must work independently of inventory/database access.
+        with TestClient(app) as client:
+            with patch('backend.services.speech_service.synthesize', new_callable=AsyncMock) as synth:
+                synth.return_value = b'ID3test-audio'
+                for code in MESSAGES:
+                    response = client.post('/voice/speak', json={'text': MESSAGES[code]['healthy'], 'language': code})
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.headers['content-type'], 'audio/mpeg')
+                    self.assertEqual(response.content, b'ID3test-audio')
+                    synth.assert_awaited_with(MESSAGES[code]['healthy'], code)
+                self.assertEqual(client.post('/voice/speak', json={'text':' ', 'language':'en'}).status_code, 400)
+                self.assertEqual(client.post('/voice/speak', json={'text':'hello', 'language':'xx'}).status_code, 422)
+                synth.side_effect = TimeoutError()
+                self.assertEqual(client.post('/voice/speak', json={'text':'hello', 'language':'en'}).status_code, 503)
+
     def test_translations_are_unicode_and_complete(self):
         for code,translations in MESSAGES.items():
             self.assertEqual(set(translations),set(MESSAGES['en']))

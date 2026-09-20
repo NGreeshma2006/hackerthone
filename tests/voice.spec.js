@@ -6,6 +6,7 @@ const baseURL = process.env.BOLI_TEST_URL || 'http://127.0.0.1:5174';
 async function setup(page, selected = 'English') {
   await page.route('https://fonts.googleapis.com/**', route => route.abort());
   await page.addInitScript(({ selected }) => {
+    localStorage.setItem('boli-session', JSON.stringify({email:'voice-test@example.com'}));
     localStorage.setItem('boli-language', JSON.stringify(selected));
     window.voiceRequests = []; window.spoken = [];
     class FakeRecognition {
@@ -21,6 +22,7 @@ async function setup(page, selected = 'English') {
       speak: utterance => { window.spoken.push({text:utterance.text,lang:utterance.lang,voice:utterance.voice?.lang}); utterance.onstart?.(); utterance.onend?.(); },
     }});
   }, { selected });
+  await page.route('**/api/auth/me', route => route.fulfill({json:{id:1,name:'Voice Tester',email:'voice-test@example.com'}}));
   await page.route('**/api/products', route => route.fulfill({json:[{id:'rice',name:'Rice',category:'Grains',default_unit:'kg',minimum_stock:3,current_stock:20}]}));
   await page.route('**/api/activity', route => route.fulfill({json:[]}));
 }
@@ -97,7 +99,69 @@ test('unsupported browser opens typed entry and missing playback voice is explai
   await expect(page.getByRole('dialog')).toContainText(messages.en.unavailable);
   await page.getByRole('button',{name:'Close',exact:true}).click();
   await page.evaluate(()=>window.speechSynthesis.getVoices=()=>[{lang:'fr-FR'}]);
+  await page.route('**/api/voice/speak', route => route.fulfill({status:503,body:'Unavailable'}));
   await page.locator('.response-speaker').click();
   await expect(page.getByText(messages.en.noVoice,{exact:true})).toBeVisible();
   expect(await page.evaluate(()=>window.spoken.length)).toBe(0);
+});
+
+
+test('online playback covers every language when device voices are missing', async ({page}) => {
+  await setup(page);
+  await page.addInitScript(() => {
+    window.speechSynthesis.getVoices = () => [{lang:'en-US'}];
+    window.audioPlays = 0;
+    window.Audio = class {
+      constructor() { window.lastAudio = this; }
+      play() { window.audioPlays++; return Promise.resolve(); }
+      pause() { this.paused = true; }
+      removeAttribute() {}
+      load() {}
+    };
+  });
+  const requests = [];
+  await page.route('**/api/voice/speak', route => {
+    requests.push(route.request().postDataJSON());
+    return route.fulfill({contentType:'audio/mpeg',body:Buffer.from('mock mp3')});
+  });
+  await page.goto(baseURL,{waitUntil:'domcontentloaded'});
+  // Force even English through the server fallback.
+  await page.evaluate(() => {window.speechSynthesis.getVoices = () => [];});
+  const labels = await page.evaluate(async () => Object.keys((await import('/src/useVoice.js')).languages));
+  for (const label of labels) {
+    await page.locator('.lang-pill').click();
+    await page.getByLabel('Voice input language').selectOption(label);
+    await page.getByRole('button',{name:'Save language'}).click();
+    const count = requests.length;
+    await page.locator('.response-speaker').click();
+    await expect.poll(() => page.evaluate(() => window.audioPlays)).toBe(count+1);
+    const body = requests.at(-1);
+    expect(body.text).toBe(messages[body.language].ready);
+    await page.locator('.speak-button').click();
+    expect(await page.evaluate(() => window.lastAudio.paused)).toBe(true);
+    expect(await page.evaluate(() => window.recognition.lang.split('-')[0])).toBe(body.language);
+    await page.locator('.speak-button').click();
+  }
+  expect(new Set(requests.map(r => r.language)).size).toBe(8);
+});
+
+test('language change cancels pending online playback', async ({page}) => {
+  await setup(page);
+  await page.route('**/api/voice/speak', async route => {
+    await new Promise(resolve => setTimeout(resolve, 700));
+    await route.fulfill({contentType:'audio/mpeg',body:Buffer.from('mock mp3')}).catch(() => {});
+  });
+  await page.goto(baseURL,{waitUntil:'domcontentloaded'});
+  await page.evaluate(() => {
+    window.speechSynthesis.getVoices = () => [];
+    window.audioPlays = 0;
+    window.Audio = class { play() {window.audioPlays++; return Promise.resolve();} };
+  });
+  await page.locator('.response-speaker').click();
+  await page.locator('.lang-pill').click();
+  await page.getByLabel('Voice input language').selectOption('Hindi + English');
+  await page.getByRole('button',{name:'Save language'}).click();
+  await page.waitForTimeout(900);
+  expect(await page.evaluate(() => window.audioPlays)).toBe(0);
+  await expect(page.locator('.transcript')).toContainText(messages.hi.ready);
 });

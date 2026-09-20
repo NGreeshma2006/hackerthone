@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useInventory, InventoryDialog } from "./inventory.jsx";
 import LoginPage from "./LoginPage.jsx";
+import { accountRequest } from "./auth";
 import { Toaster } from "sonner";
 import {
   Bell,
@@ -45,20 +46,30 @@ const navItems = [
 
 
 export default function App() {
-  const [session, setSession] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('boli-session')); }
-    catch { return null; }
-  });
-  function login(user) {
-    const nextSession = { ...user, signedInAt: new Date().toISOString() };
-    localStorage.setItem('boli-session', JSON.stringify(nextSession));
-    setSession(nextSession);
+  const [session, setSession] = useState(null);
+  const [checking, setChecking] = useState(true);
+  const [sessionError, setSessionError] = useState('');
+  useEffect(() => {
+    let active = true;
+    // Old prototype profiles are not authenticated sessions.
+    try { localStorage.removeItem('boli-session'); } catch {}
+    accountRequest('me').then(user => { if (active) setSession(user); })
+      .catch(() => {})
+      .finally(() => { if (active) setChecking(false); });
+    return () => { active = false; };
+  }, []);
+  async function logout() {
+    try { await accountRequest('logout', {}); setSession(null); setSessionError(''); }
+    catch (error) { setSessionError(error.message); }
   }
-  if (!session) return <LoginPage onLogin={login} />;
-  return <InventoryHome />;
+  if (checking) return <div className="session-loading" role="status">Opening BoliStock...</div>;
+  if (!session) return <LoginPage onLogin={setSession} />;
+  return <InventoryHome user={session} onLogout={logout} sessionError={sessionError} />;
 }
 
-function InventoryHome() {
+function InventoryHome({ user, onLogout, sessionError }) {
+  const displayName = user.name || user.email.split('@')[0];
+  const initials = displayName.split(/\s+/).map(part => Array.from(part)[0]).slice(0, 2).join('').toUpperCase();
   const inventory = useInventory();
   const { stock, activeNav, navigate, language, isListening, transcript, filter, setFilter,
     search, setSearch, command, setCommand, startListening, stopListening, runCommand,
@@ -110,20 +121,22 @@ function InventoryHome() {
             <div><strong>Small tip</strong><p>Say “what is low?” anytime.</p></div>
           </div>
           <button className="nav-item muted" onClick={() => open("Settings")}><Settings2 size={18} /><span>Settings</span></button>
-          <div className="profile-row"><div className="profile-avatar">RS</div><div><strong>{settings.owner}</strong><span>Owner</span></div><MoreHorizontal size={17} /></div>
+          <div className="profile-row"><div className="profile-avatar">{initials}</div><div><strong>{displayName}</strong><span>Owner</span></div><MoreHorizontal size={17} /></div>
         </div>
       </aside>
 
       <main className="main-content">
         <header className="topbar">
-          <div className="breadcrumb"><span>Today</span><span className="slash">/</span><strong>{activeNav === "Today" ? `Good morning, ${settings.owner.split(" ")[0]}` : activeNav}</strong></div>
+          <div className="breadcrumb"><span>Today</span><span className="slash">/</span><strong>{activeNav === "Today" ? `Good morning, ${displayName}` : activeNav}</strong></div>
           <div className="top-actions">
+            <button className="outline-button signout-button" onClick={onLogout}>Sign out</button>
             <button className="lang-pill" onClick={() => open("Language")}><Languages size={16} /><span>{language}</span><ChevronDown size={14} /></button>
             <button className="icon-button" aria-label="Help" onClick={() => open("Help")}><CircleHelp size={18} /></button>
             <button className="icon-button has-badge" aria-label="Notifications" onClick={() => open("Notifications")}><Bell size={18} />{lowCount > 0 && <span className="badge-dot" />}</button>
           </div>
         </header>
 
+        {sessionError && <div className="connection-error" role="alert">{sessionError}</div>}
         {error && <div role="alert" className="connection-error">{error} <button onClick={refresh}>Retry</button></div>}
         <section className="welcome-row">
           <div><p className="eyebrow">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).toUpperCase()}</p><h1>Your shop, <span>in one breath.</span></h1><p className="lede">Speak naturally. We’ll keep the shelves, numbers and next steps in sync.</p></div>

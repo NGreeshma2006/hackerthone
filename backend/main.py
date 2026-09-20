@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import Literal
 from sqlalchemy.orm import Session
@@ -12,9 +13,12 @@ from backend.services.voice_service import VoiceService
 from backend.services.nlp_service import NLPService
 import os
 
+from backend.services.auth_service import router as auth_router
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="StockStory AI")
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -120,6 +124,18 @@ def activity(inventory = Depends(get_inventory)):
 class VoiceRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
     language: Literal['en', 'hi', 'te', 'ta', 'kn', 'ml', 'mr', 'bn'] = 'en'
+
+
+@app.post('/voice/speak')
+async def speak_voice(payload: VoiceRequest):
+    from backend.services.speech_service import synthesize
+    if not payload.text.strip():
+        raise HTTPException(status_code=400, detail='No speech text supplied')
+    try:
+        audio = await synthesize(payload.text.strip(), payload.language)
+    except Exception:
+        raise HTTPException(status_code=503, detail='Speech playback is temporarily unavailable')
+    return Response(audio, media_type='audio/mpeg', headers={'Cache-Control': 'no-store'})
 
 
 @app.post("/voice/process")
