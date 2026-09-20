@@ -1,3 +1,41 @@
+# Current deployment: Vercel frontend + Railway backend
+
+The backend is `https://hackerthone-production.up.railway.app`.
+The repository's `vercel.json` routes `/api/:path*` to that backend, preserving
+same-origin browser requests and login cookies. The Vite development proxy only
+runs locally; it cannot route requests on a deployed static site.
+
+## Apply this fix
+
+1. Commit and push `vercel.json` and `vite.config.js` to the branch Vercel deploys.
+2. In Vercel, use the repository root as **Root Directory** (leave it blank),
+   **Build Command** `npm run build`, and **Output Directory** `frontend/dist`.
+3. Redeploy that branch and open the new deployment or the production domain.
+   Previously generated deployment URLs still refer to their original builds.
+
+Vercel builds force the frontend API base to `/api`, so a stale `VITE_API_URL`
+setting cannot bypass the proxy. Other hosting providers still use `VITE_API_URL`.
+All three clients (accounts, inventory, speech) use the same build-time setting.
+
+## Verify
+
+- Open `https://YOUR-VERCEL-DOMAIN/api/auth/me` before signing in. It should return
+  JSON `{"detail":"Please sign in."}` with status 401, not HTML or a 404.
+- Sign up or sign in, reload, and confirm the greeting still shows your name.
+- Check inventory and selected-language speech playback.
+
+A browser's red "Dangerous" warning is separate from API routing; review the
+site's security classification with the browser provider if it remains.
+
+## Account persistence on Railway
+
+Accounts and sessions currently use SQLite at `backend/stockstory.db`. Keep that
+file on persistent storage when deploying Railway; MongoDB inventory settings
+do not move accounts into MongoDB. Do not replace an existing account database
+with a new empty one when configuring persistence.
+
+---
+
 # Deploy StockStory AI on Render
 
 This project is deployed as two Render services:
